@@ -1,5 +1,6 @@
 from fastmcp import FastMCP
 import feedparser
+from prefect import flow  # <-- 1. Added Prefect import
 
 mcp = FastMCP(name="Feed Parser MCP")
 
@@ -16,7 +17,6 @@ def fcc_news_search(query: str, max_results: int = 5):
         title = entry.get("title", "").lower()
         description = entry.get("description", "").lower()
         
-        # Check if ANY of the words the AI searched for exist in the title or description
         if any(word in title or word in description for word in query_words):
             results.append({
                 "title": entry.get("title", ""),
@@ -31,7 +31,6 @@ def fcc_news_search(query: str, max_results: int = 5):
 @mcp.tool()
 def fcc_youtube_search(query: str, max_results: int = 5):
     """Search FreeCodeCamp YouTube videos related to the given query using the FCC YouTube channel RSS feed by title."""
-    # FIX: Changed "feedspython" to "feeds"
     feed = feedparser.parse("https://www.youtube.com/feeds/videos.xml?channel_id=UC8butISFwT-Wl7EV0hUK0BQ")
     results = []
     query_lower = query.lower()
@@ -47,5 +46,12 @@ def fcc_youtube_search(query: str, max_results: int = 5):
 
     return results or [{"message": "No results found."}]
 
+# <-- 2. Created the Prefect Flow -->
+@flow(name="Feed Parser MCP Deployment", log_prints=True)
+def main():
+    print("Starting the MCP Server via Prefect...")
+    # Switched transport to "sse" as FastMCP doesn't natively use "http"
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
+
 if __name__ == "__main__":
-    mcp.run(transport="http")
+    main()
